@@ -21,7 +21,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Configure Smart 0183 TCP Sensor",
+        "title": "Configure Smart 2000 ESP Sensor",
         "description": "Update the ESPHome Name. eg esphome-web-3e9a60.",
         "data": {
           "host": "ESPHome Device Name"
