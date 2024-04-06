@@ -6,28 +6,25 @@
     },
     "step": {
       "user": {
-        "title": "Connect to Smart 0183 TCP Sensor",
-        "description": "Please enter the Device Name, Hostname or IP address, and Port of your NMEA TCP device.",
+        "title": "Connect to Smart 2000 ESP Sensor",
+        "description": "Please enter the ESPHome Name. eg esphome-web-3e9a60.",
         "data": {
-          "name": "TCP Device Name",
-          "host": "Hostname or IP address",
-          "port": "Port number"
-        }
+          "name": "ESPHome Device Name"
+       }
       }
     },
     "success": {
       "title": "Connection Successful",
-      "description": "You have successfully connected to Smart 0183 TCP Sensor."
+      "description": "You have successfully connected to Smart Smart 2000 ESP Sensor."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Configure Smart 0183 TCP Sensor",
-        "description": "Update the Hostname or IP address and Port of your NMEA TCP device.",
+        "description": "Update the ESPHome Name. eg esphome-web-3e9a60.",
         "data": {
-          "host": "Hostname or IP address",
-          "port": "Port number"
+          "host": "ESPHome Device Name"
         }
       }
     }
