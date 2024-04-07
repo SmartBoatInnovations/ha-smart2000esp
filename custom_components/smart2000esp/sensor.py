@@ -52,6 +52,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
     created_sensors_key = f"{name}_created_sensors"
     smart2000esp_data_key = f"{name}_smart2000esp_data"
     fast_packet_key = f"{name}_fast_packet_key"
+
+    smart2000timestamp_key = f"{name}_smart2000timestamp_key"
+    hass.data[smart2000timestamp_key] = {
+        "last_processed": {},  # Empty dict to store last processed times for pgn_ids
+        "min_interval": timedelta(seconds=5),  
+        }
     
     # Initialize dictionary to hold fast packet frames
     hass.data[fast_packet_key] = {}
@@ -168,8 +174,11 @@ def process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
     
     total_bytes = None
     
+    if frame_counter == 0 and not can_process(hass, instance_name, pgn):
+        return
+
     if frame_counter != 0 and pgn_data['payload_length'] == 0:
-        _LOGGER.info(f"Ignoring frame {frame_counter} for PGN {pgn} as first frame has not been received.")
+        _LOGGER.debug(f"Ignoring frame {frame_counter} for PGN {pgn} as first frame has not been received.")
         return
     
     
@@ -244,6 +253,20 @@ def process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
         # Reset the structure for this PGN
         del hass.data[fast_packet_key][pgn]
         
+def can_process(hass, instance_name, pgn_id):
+
+    smart2000timestamp_key = f"{instance_name}_smart2000timestamp_key"
+    
+    now = datetime.now()
+    last_processed = hass.data[smart2000timestamp_key]["last_processed"]
+    min_interval = hass.data[smart2000timestamp_key]["min_interval"]
+    
+    if pgn_id not in last_processed or now - last_processed[pgn_id] >= min_interval:
+        hass.data[smart2000timestamp_key]["last_processed"][pgn_id] = now  
+        return True
+    else:
+        _LOGGER.info(f"Throttling activated for PGN {pgn_id} in instance {instance_name}.")
+        return False
 
 
 def set_pgn_entity(hass, instance_name, entity_id, state_value):
@@ -268,6 +291,7 @@ def set_pgn_entity(hass, instance_name, entity_id, state_value):
     
         # Convert the hexadecimal strings back to integer values
         pgn = int(pgn_hex, 16)
+        
         source_id = int(source_id_hex, 16)
         data64 = int(data64_hex, 16)
 
@@ -286,6 +310,9 @@ def set_pgn_entity(hass, instance_name, entity_id, state_value):
             _LOGGER.info(f"PGN {pgn} is of type 'Fast'.")
             process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
         else:
+            if not can_process(hass, instance_name, pgn):
+                return
+            
             _LOGGER.debug(f"PGN {pgn} is of type 'Single'.")
             call_process_function(pgn, hass, instance_name, entity_id, data64)
 
