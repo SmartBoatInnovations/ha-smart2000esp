@@ -56,7 +56,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     smart2000timestamp_key = f"{name}_smart2000timestamp_key"
     hass.data[smart2000timestamp_key] = {
         "last_processed": {},  # Empty dict to store last processed times for pgn_ids
-        "min_interval": timedelta(seconds=10),  
+        "min_interval": timedelta(seconds=5),  
         }
     
     # Initialize dictionary to hold fast packet frames
