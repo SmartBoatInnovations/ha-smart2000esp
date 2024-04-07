@@ -624,6 +624,41 @@ def process_pgn_129542(hass, instance_name, entity_id, data_raw):
     publish_field(hass, instance_name, 'std_of_alt_error', 'STD of Alt Error', std_of_alt_error, 'GNSS Pseudorange Noise Statistics', '', '129542')
     _LOGGER.debug('STD of Alt Error  : %s', std_of_alt_error)
 
+def process_pgn_130306(hass, instance_name, entity_id, data_raw):
+    from .sensor import publish_field
+    """Process and log data for PGN 130306."""
+    # sid | Offset: 0, Length: 8, Resolution: 1, Field Type: NUMBER
+    sid_raw = decode_number((data_raw >> 0) & 0xFF, 8)
+    sid = sid_raw * 1
+    publish_field(hass, instance_name, 'sid', 'SID', sid, 'Wind Data', '', '130306')
+    _LOGGER.debug('SID  : %s', sid)
+
+    # wind_speed | Offset: 8, Length: 16, Resolution: 0.01, Field Type: NUMBER
+    wind_speed_raw = decode_number((data_raw >> 8) & 0xFFFF, 16)
+    wind_speed = wind_speed_raw * 0.01
+    publish_field(hass, instance_name, 'wind_speed', 'Wind Speed', wind_speed, 'Wind Data', 'm/s', '130306')
+    publish_field(hass, instance_name, 'wind_speed_knots', 'Wind Speed Knots', mps_to_knots(wind_speed), 'Wind Data', 'Kn', '130306')
+    _LOGGER.debug('Wind Speed  : %s', wind_speed)
+
+    # wind_angle | Offset: 24, Length: 16, Resolution: 0.0001, Field Type: NUMBER
+    wind_angle_raw = decode_number((data_raw >> 24) & 0xFFFF, 16)
+    wind_angle = wind_angle_raw * 0.0001
+    publish_field(hass, instance_name, 'wind_angle', 'Wind Angle', wind_angle, 'Wind Data', 'rad', '130306')
+    publish_field(hass, instance_name, 'wind_angle_degrees', 'Wind Angle Degrees', radians_to_degrees(wind_angle), 'Wind Data', 'Deg', '130306')
+    _LOGGER.debug('Wind Angle  : %s', wind_angle)
+
+    # reference | Offset: 40, Length: 3, Resolution: 1, Field Type: LOOKUP
+    reference_raw = (data_raw >> 40) & 0x7
+    reference = reference_raw * 1
+    publish_field(hass, instance_name, 'reference', 'Reference', reference, 'Wind Data', '', '130306')
+    _LOGGER.debug('Reference  : %s', reference)
+
+    # reserved | Offset: 43, Length: 21, Resolution: 1, Field Type: RESERVED
+    reserved_raw = (data_raw >> 43) & 0x1FFFFF
+    reserved = reserved_raw * 1
+    publish_field(hass, instance_name, 'reserved', 'Reserved', reserved, 'Wind Data', '', '130306')
+    _LOGGER.debug('Reserved  : %s', reserved)
+
 def process_pgn_130310(hass, instance_name, entity_id, data_raw):
     from .sensor import publish_field
     """Process and log data for PGN 130310."""
