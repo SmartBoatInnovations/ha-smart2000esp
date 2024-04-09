@@ -73,22 +73,20 @@ async def async_setup_entry(hass, entry, async_add_entities):
     
     # Load the Smart2000 json data 
     config_dir = hass.config.config_dir
-    json_path = os.path.join(config_dir, 'custom_components', 'smart2000esp', 'smart2000pgns.json')
+    json_path = os.path.join(config_dir, 'custom_components', 'smart2000esp', 'pgn_type.json')
     try:
         with open(json_path, "r") as file:
             smart_data = json.load(file)
 
         pgn_dict = {}
-        for pgn in smart_data["PGNs"]:  
-            pgn_id = pgn["PGN"] 
+        # Iterate over each PGN entry in the list
+        for pgn_entry in smart_data["PGNs"]:
+            pgn_id, pgn_type = pgn_entry  # Unpack the tuple
+    
+            # Store the PGN and its type in the dictionary
+            pgn_dict[pgn_id] = pgn_type
             
-            pgn_dict[pgn_id] = {
-                "Description": pgn["Description"],
-                "Type": pgn["Type"],
-                "FieldCount": pgn["FieldCount"],
-                "Length": pgn.get("Length", 0)
-            }
-
+            
         hass.data[smart2000esp_data_key] = pgn_dict
         
         _LOGGER.debug(f"smart2000esp_data_key: {smart2000esp_data_key}")
@@ -300,22 +298,23 @@ def set_pgn_entity(hass, instance_name, entity_id, state_value):
         _LOGGER.info('Reconstructed data64  : %d (Hex: %s)', data64, data64_hex)
 
     
-        pgn_entry = hass.data[smart2000esp_data_key].get(pgn)
+        pgn_type = hass.data[smart2000esp_data_key].get(pgn)
         
         _LOGGER.debug(f"smart2000esp_data_key: {smart2000esp_data_key}")
         
             
-        if pgn_entry and pgn_entry['Type'] == 'Fast':
+        if pgn_type and pgn_type == 'Fast':
             _LOGGER.info(f"PGN {pgn} is of type 'Fast'.")
             process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
-        else:
+        elif pgn_type and pgn_type == 'Single':
             if not can_process(hass, instance_name, pgn):
                 return
             
             _LOGGER.debug(f"PGN {pgn} is of type 'Single'.")
             call_process_function(pgn, hass, instance_name, entity_id, data64)
-
-            
+        else:
+            _LOGGER.error(f"PGN {pgn} is not a known PGN.")
+                
 
     except ValueError as e:
         _LOGGER.error('Error processing state value  : %s. Error: %s' , state_value, e)
@@ -326,7 +325,6 @@ def publish_field(hass, instance_name, field_name, field_description, field_valu
 
     add_entities_key = f"{instance_name}_add_entities"
     created_sensors_key = f"{instance_name}_created_sensors"
-    smart2000esp_data_key = f"{instance_name}_smart2000esp_data"
 
     # Construct unique sensor name
     sensor_name = f"{instance_name}_{pgn_id}_{field_name}"
