@@ -63,12 +63,16 @@ def radians_to_degrees(radians):
     return degrees
 
 
+
 def decode_date(days_since_epoch):
     """
     Decodes an integer representing the number of days since 1970-01-01 (UNIX epoch)
     Returns:
         str: The decoded date in YYYY-MM-DD format.
     """
+    # Ensure the input is treated as an integer
+    days_since_epoch = int(days_since_epoch)
+    
     # Define the start date as 1970-01-01
     start_date = date(1970, 1, 1)
     
@@ -79,13 +83,15 @@ def decode_date(days_since_epoch):
     return decoded_date.isoformat()
 
 
-
 def decode_time(seconds_since_midnight):
     """
     Decodes an integer representing seconds since midnight into a human-readable time string.
     Returns:
         str: The decoded time in HH:MM:SS format.
     """
+    # Ensure the input is treated as an integer
+    seconds_since_midnight = int(seconds_since_midnight)
+
     # Validate input
     if not (0 <= seconds_since_midnight < 86400):  # There are 86400 seconds in a day
         return "0:0:0"
@@ -96,7 +102,6 @@ def decode_time(seconds_since_midnight):
 
     # Format and return the time string
     return "{:02d}:{:02d}:{:02d}".format(hours, minutes, seconds)
-
 
 
 
@@ -128,7 +133,7 @@ def decode_float(number_int):
     """
     # Ensure the input integer fits in 32 bits
     if not (0 <= number_int <= 0xFFFFFFFF):
-        return None
+        return 0
 
     # Convert the integer to bytes. The '<I' format specifies little-endian unsigned 32-bit integer.
     bytes_data = struct.pack('<I', number_int)

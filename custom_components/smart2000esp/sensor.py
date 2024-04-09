@@ -55,7 +55,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
     smart2000timestamp_key = f"{name}_smart2000timestamp_key"
     hass.data[smart2000timestamp_key] = {
-        "last_processed": {},  # Empty dict to store last processed times for pgn_ids
+        "last_processed": {},  
         "min_interval": timedelta(seconds=5),  
         }
     
@@ -133,7 +133,7 @@ def call_process_function(pgn, hass, instance_name, entity_id, data_frames):
     if function_to_call:
         function_to_call(hass, instance_name, entity_id, data_frames)
     else:
-        print(f"No function found for PGN: {pgn}")
+        _LOGGER.info(f"No function found for PGN: {pgn}")
 
 def combine_pgn_frames(hass, pgn, instance_name):
     """Combine stored frame data for a PGN into a single hex string, preserving the original byte lengths."""
@@ -212,7 +212,6 @@ def process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
             # For subsequent frames, exclude the last 2 hex characters (1 byte) from the payload
             data_payload_hex = data64_hex[:-2]
     
-    data_payload_int = int(data_payload_hex, 16)     
     byte_length = len(data_payload_hex) // 2
 
 
@@ -331,10 +330,12 @@ def publish_field(hass, instance_name, field_name, field_description, field_valu
 
     # Construct unique sensor name
     sensor_name = f"{instance_name}_{pgn_id}_{field_name}"
+    
     #_LOGGER.debug(f"Constructed sensor name: {sensor_name}")
 
     # Define sensor characteristics
     group = "Smart2000"
+    
     unit_of_measurement = unit  # Determine based on field_name if applicable
     
     device_name = pgn_description
@@ -355,7 +356,8 @@ def publish_field(hass, instance_name, field_name, field_description, field_valu
             group, 
             unit_of_measurement, 
             device_name, 
-            pgn_id
+            pgn_id,
+            instance_name
         )
         
         hass.data[add_entities_key]([sensor])
@@ -384,7 +386,8 @@ class SmartSensor(Entity):
         group=None, 
         unit_of_measurement=None, 
         device_name=None, 
-        sentence_type=None
+        sentence_type=None,
+        instance_name=None
     ):
         """Initialize the sensor."""
         _LOGGER.info(f"Initializing sensor: {name} with state: {initial_state}")
@@ -396,6 +399,7 @@ class SmartSensor(Entity):
         self._group = group if group is not None else "Other"
         self._device_name = device_name
         self._sentence_type = sentence_type
+        self._instance_name = instance_name
         self._unit_of_measurement = unit_of_measurement
         self._state_class = SensorStateClass.MEASUREMENT
         self._last_updated = datetime.now()
@@ -428,7 +432,7 @@ class SmartSensor(Entity):
     def device_info(self):
         """Return device information about this sensor."""
         return {
-            "identifiers": {("smart0183tcp", self._device_name)},
+            "identifiers": {("smart2000esp", f"{self._instance_name}_{self._device_name}")},
             "name": self._device_name,
             "manufacturer": self._group,
             "model": self._sentence_type,
