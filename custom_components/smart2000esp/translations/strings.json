@@ -7,24 +7,27 @@
     "step": {
       "user": {
         "title": "Connect to Smart 2000 ESP Sensor",
-        "description": "Please enter the ESPHome Name. eg esphome-web-3e9a60.",
+        "description": "Enter the device name and specify which PGNs to include or exclude. For best performance only use the PGNs that you wish to use. You can always update this later.",
         "data": {
-          "name": "ESPHome Device Name"
-       }
+          "name": "ESPHome Device Name. eg esphome-web-3e9a60",
+          "pgn_include": "PGNs to Include (comma-separated list)",
+          "pgn_exclude": "PGNs to Exclude (comma-separated list)"
+        }
       }
     },
     "success": {
       "title": "Connection Successful",
-      "description": "You have successfully connected to Smart Smart 2000 ESP Sensor."
+      "description": "You have successfully connected to Smart 2000 ESP Sensor."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Configure Smart 2000 ESP Sensor",
-        "description": "Update the ESPHome Name. eg esphome-web-3e9a60.",
+        "description": "Specify which PGNs to include or exclude. For best performance only use the PGNs that you wish to use.",
         "data": {
-          "host": "ESPHome Device Name"
+          "pgn_include": "PGNs to Include (comma-separated list)",
+          "pgn_exclude": "PGNs to Exclude (comma-separated list)"
         }
       }
     }

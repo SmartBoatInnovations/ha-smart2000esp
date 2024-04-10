@@ -9,10 +9,12 @@ import pprint
 # Third-Party Library Imports
 
 # Home Assistant Imports
-from homeassistant.core import callback
+from homeassistant.core import callback, HomeAssistant
 from homeassistant.components.sensor import  SensorStateClass
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.event import async_track_state_change
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from homeassistant.const import (
     CONF_NAME
@@ -40,18 +42,27 @@ async def update_sensor_availability(hass,instance_name):
 
 # The main setup function to initialize the sensor platform
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     # Retrieve configuration from entry
     name = entry.data[CONF_NAME]
-
-    # Log the retrieved configuration values for debugging purposes
-    _LOGGER.info(f"Configuring sensor with name: {name}")
     
+    pgn_include = parse_and_validate_comma_separated_integers(entry.data.get('pgn_include', ''))
+    pgn_exclude = parse_and_validate_comma_separated_integers(entry.data.get('pgn_exclude', ''))
+    
+    _LOGGER.info(f"Configuring sensor with name: {name}, PGN Include: {pgn_include}, PGN Exclude: {pgn_exclude}")
+        
     # Initialize unique dictionary keys based on the integration name
     add_entities_key = f"{name}_add_entities"
     created_sensors_key = f"{name}_created_sensors"
     smart2000esp_data_key = f"{name}_smart2000esp_data"
     fast_packet_key = f"{name}_fast_packet_key"
+    
+    whitelist_key = f"{name}_whitelist_key"
+    blacklist_key = f"{name}_blacklist_key"
+    
+    hass.data[whitelist_key] = pgn_include
+    hass.data[blacklist_key] = pgn_exclude
+    
 
     smart2000timestamp_key = f"{name}_smart2000timestamp_key"
     hass.data[smart2000timestamp_key] = {
@@ -118,10 +129,64 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
     esp32name = f'sensor.{sensor_name}_s_2000_frame'
 
-    async_track_state_change(hass, esp32name, sensor_state_change)
+    unsubscribe = async_track_state_change(hass, esp32name, sensor_state_change)
+    
+    # Store the unsubscribe callback to use it later for cleanup
+    hass.data[f"{name}_unsubscribe"] = unsubscribe
+    
+    
 
     _LOGGER.info(f"{esp32name} setup completed.")
+    
+    return True
 
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    
+    # Retrieve configuration from entry
+    name = entry.data["name"]
+
+    _LOGGER.info(f"Unload integration with name: {name}")
+
+    # Unsubscribe from state changes
+    unsubscribe_key = f"{name}_unsubscribe"
+    if unsubscribe_key in hass.data:
+        _LOGGER.info(f"Unsubscribing from state changes for {name}.")
+        hass.data[unsubscribe_key]()
+        del hass.data[unsubscribe_key]
+    
+    # Clean up hass.data entries
+    for key_suffix in ['add_entities', 'created_sensors', 'smart2000esp_data', 'fast_packet', 'whitelist', 'blacklist', 'smart2000timestamp']:
+        key = f"{name}_{key_suffix}"
+        if key in hass.data:
+            _LOGGER.info(f"Removing {key} from hass.data.")
+            del hass.data[key]
+
+    _LOGGER.info(f"Unload and cleanup for {name} completed successfully.")
+    
+    return True
+
+def parse_and_validate_comma_separated_integers(input_str: str):
+    
+    # Check if the input string is empty or contains only whitespace
+    if not input_str.strip():
+        return []
+
+    # Split the string by commas to get potential integer values
+    potential_integers = input_str.split(',')
+
+    validated_integers = []
+    for value in potential_integers:
+        value = value.strip()  # Remove any leading/trailing whitespace
+        if value:  # Check if the string is not empty
+            try:
+                # Attempt to convert the string to an integer
+                integer_value = int(value)
+                validated_integers.append(integer_value)
+            except ValueError:
+                # Raise an error indicating the specific value that couldn't be converted
+                _LOGGER.error(f"Invalid pgn value found: '{value}' in input '{input_str}'.")
+    
+    return validated_integers
 
 def call_process_function(pgn, hass, instance_name, entity_id, data_frames):
     function_name = f'process_pgn_{pgn}'
@@ -265,12 +330,37 @@ def can_process(hass, instance_name, pgn_id):
         _LOGGER.info(f"Throttling activated for PGN {pgn_id} in instance {instance_name}.")
         return False
 
+def is_pgn_allowed_based_on_lists(pgn, pgn_include_list, pgn_exclude_list):
+    """
+    Determines whether a given PGN should be processed based on whitelist and blacklist rules.
+
+    :param pgn: The PGN to check.
+    :param pgn_include_list: A list of PGNs to include (whitelist).
+    :param pgn_exclude_list: A list of PGNs to exclude (blacklist).
+    :return: True if the PGN should be processed, False otherwise.
+    """
+    # If the include list is not empty, process only if PGN is in the include list
+    if pgn_include_list:
+        return pgn in pgn_include_list
+
+    # If the include list is empty but the exclude list is not, process only if PGN is not in the exclude list
+    elif pgn_exclude_list:
+        return pgn not in pgn_exclude_list
+
+    # If both lists are empty, process all PGNs
+    return True
+
 
 def set_pgn_entity(hass, instance_name, entity_id, state_value):
     """Reconstructs PGN and data64 from the sensor state, handling various edge cases."""
 
     smart2000esp_data_key = f"{instance_name}_smart2000esp_data"
-
+    whitelist_key = f"{instance_name}_whitelist_key"
+    blacklist_key = f"{instance_name}_blacklist_key"
+    
+    pgn_include_list = hass.data[whitelist_key]
+    pgn_exclude_list = hass.data[blacklist_key]
+    
 
     # Check if the state_value is None or does not contain a colon, indicating an invalid or unavailable state
     if state_value is None or ':' not in state_value:
@@ -288,6 +378,11 @@ def set_pgn_entity(hass, instance_name, entity_id, state_value):
     
         # Convert the hexadecimal strings back to integer values
         pgn = int(pgn_hex, 16)
+        
+        if not is_pgn_allowed_based_on_lists(pgn, pgn_include_list, pgn_exclude_list):
+            _LOGGER.info(f"PGN {pgn} skipped due to white/black lists.")
+            return
+
         
         source_id = int(source_id_hex, 16)
         data64 = int(data64_hex, 16)
@@ -313,7 +408,7 @@ def set_pgn_entity(hass, instance_name, entity_id, state_value):
             _LOGGER.debug(f"PGN {pgn} is of type 'Single'.")
             call_process_function(pgn, hass, instance_name, entity_id, data64)
         else:
-            _LOGGER.error(f"PGN {pgn} is not a known PGN.")
+            _LOGGER.info(f"PGN {pgn} is not a known PGN.")
                 
 
     except ValueError as e:
