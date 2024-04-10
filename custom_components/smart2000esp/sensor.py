@@ -27,25 +27,12 @@ from .pgns import *
 _LOGGER = logging.getLogger(__name__)
 
 
-async def update_sensor_availability(hass,instance_name):
-    """Update the availability of all sensors every 5 minutes."""
-    
-    created_sensors_key = f"{instance_name}_created_sensors"
-
-    while True:
-        _LOGGER.debug("Running update_sensor_availability")
-        await asyncio.sleep(300)  # wait for 5 minutes
-
-        for sensor in hass.data[created_sensors_key].values():
-            sensor.update_availability()
-
-
 # The main setup function to initialize the sensor platform
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+    
     # Retrieve configuration from entry
     name = entry.data[CONF_NAME]
-    
     pgn_include = parse_and_validate_comma_separated_integers(entry.data.get('pgn_include', ''))
     pgn_exclude = parse_and_validate_comma_separated_integers(entry.data.get('pgn_exclude', ''))
     
@@ -56,14 +43,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     created_sensors_key = f"{name}_created_sensors"
     smart2000esp_data_key = f"{name}_smart2000esp_data"
     fast_packet_key = f"{name}_fast_packet_key"
-    
     whitelist_key = f"{name}_whitelist_key"
     blacklist_key = f"{name}_blacklist_key"
     
     hass.data[whitelist_key] = pgn_include
     hass.data[blacklist_key] = pgn_exclude
     
-
     smart2000timestamp_key = f"{name}_smart2000timestamp_key"
     hass.data[smart2000timestamp_key] = {
         "last_processed": {},  
@@ -75,14 +60,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
 
      # Save a reference to the add_entities callback
-    _LOGGER.debug(f"Assigning async_add_entities to hass.data[{add_entities_key}].")
     hass.data[add_entities_key] = async_add_entities
 
 
     # Initialize a dictionary to store references to the created sensors
     hass.data[created_sensors_key] = {}
     
-    # Load the Smart2000 json data 
+    # Load the fast pgn json data 
     config_dir = hass.config.config_dir
     json_path = os.path.join(config_dir, 'custom_components', 'smart2000esp', 'pgn_type.json')
     try:
@@ -100,15 +84,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             
         hass.data[smart2000esp_data_key] = pgn_dict
         
-        _LOGGER.debug(f"smart2000esp_data_key: {smart2000esp_data_key}")
-
 
     except Exception as e:
         _LOGGER.error(f"Error loading Smart2000.json: {e}")
         return
-
-    _LOGGER.debug(f"Loaded smart data: {hass.data[smart2000esp_data_key]}")
-    
+  
     
     
     # Define a callback to handle when te esp32 sends a new canbus frame
@@ -122,23 +102,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             
             
 
-    # Subscribe to changes of the specific sensor
-    # async_track_state_change(hass, 'sensor.esphome_web_3e9a60_s_2000_frame', sensor_state_change)
     
     sensor_name = name.replace('-', '_')
 
-    esp32name = f'sensor.{sensor_name}_s_2000_frame'
+    esp32name = f'sensor.{sensor_name}_smart2000_frame'
+
+    # Subscribe to changes of the main sensor
 
     unsubscribe = async_track_state_change(hass, esp32name, sensor_state_change)
     
     # Store the unsubscribe callback to use it later for cleanup
     hass.data[f"{name}_unsubscribe"] = unsubscribe
-    
-    
-
+     
     _LOGGER.info(f"{esp32name} setup completed.")
     
     return True
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
@@ -165,6 +144,20 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     return True
 
+
+async def update_sensor_availability(hass,instance_name):
+    """Update the availability of all sensors every 5 minutes."""
+    
+    created_sensors_key = f"{instance_name}_created_sensors"
+
+    while True:
+        _LOGGER.debug("Running update_sensor_availability")
+        await asyncio.sleep(300)  # wait for 5 minutes
+
+        for sensor in hass.data[created_sensors_key].values():
+            sensor.update_availability()
+
+
 def parse_and_validate_comma_separated_integers(input_str: str):
     
     # Check if the input string is empty or contains only whitespace
@@ -188,6 +181,7 @@ def parse_and_validate_comma_separated_integers(input_str: str):
     
     return validated_integers
 
+
 def call_process_function(pgn, hass, instance_name, entity_id, data_frames):
     function_name = f'process_pgn_{pgn}'
     function_to_call = globals().get(function_name)
@@ -198,8 +192,10 @@ def call_process_function(pgn, hass, instance_name, entity_id, data_frames):
     else:
         _LOGGER.info(f"No function found for PGN: {pgn}")
 
+
 def combine_pgn_frames(hass, pgn, instance_name):
     """Combine stored frame data for a PGN into a single hex string, preserving the original byte lengths."""
+    
     fast_packet_key = f"{instance_name}_fast_packet_key"
     
     if pgn not in hass.data[fast_packet_key]:
@@ -223,7 +219,6 @@ def process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
     
     # Check if this PGN already has a storage structure; if not, create one
     if pgn not in hass.data[fast_packet_key]:
-        _LOGGER.info("Create Storage for PGN: %d", pgn)
         hass.data[fast_packet_key][pgn] = {'frames': {}, 'payload_length': 0, 'bytes_stored': 0}
         
     pgn_data = hass.data[fast_packet_key][pgn]
@@ -241,10 +236,9 @@ def process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
         return
 
     if frame_counter != 0 and pgn_data['payload_length'] == 0:
-        _LOGGER.debug(f"Ignoring frame {frame_counter} for PGN {pgn} as first frame has not been received.")
+        _LOGGER.info(f"Ignoring frame {frame_counter} for PGN {pgn} as first frame has not been received.")
         return
-    
-    
+       
     # Calculate data payload
     if frame_counter == 0:
         
@@ -258,13 +252,11 @@ def process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
         pgn_data['sequence_counter'] = sequence_counter
         pgn_data['bytes_stored'] = 0  # Reset bytes stored for a new message
         pgn_data['frames'].clear()  # Clear previous frames
-        
-        
+                
         # For the first frame, exclude the last 4 hex characters (2 bytes) from the payload
         data_payload_hex = data64_hex[:-4]
         
-    else:
-        
+    else:       
         if sequence_counter != pgn_data['sequence_counter']:
             _LOGGER.info(f"Ignoring frame {sequence_counter} for PGN {pgn} as it does not match current sequence.")
             return
@@ -277,12 +269,10 @@ def process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
     
     byte_length = len(data_payload_hex) // 2
 
-
     # Store the frame data
     pgn_data['frames'][frame_counter] = data_payload_hex
     pgn_data['bytes_stored'] += byte_length  # Update the count of bytes stored
-
-      
+     
     # Log the extracted values
     _LOGGER.info(f"Sequence Counter: {sequence_counter}")
     _LOGGER.info(f"Frame Counter: {frame_counter}")
@@ -304,7 +294,6 @@ def process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
         # All data for this PGN has been received, proceed to publish
         combined_payload_hex = combine_pgn_frames(hass, pgn, instance_name)
         combined_payload_int = int(combined_payload_hex, 16)
-
         
         if combined_payload_int is not None:
             _LOGGER.info(f"Combined Payload (hex): {combined_payload_hex})")
@@ -314,6 +303,7 @@ def process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
 
         # Reset the structure for this PGN
         del hass.data[fast_packet_key][pgn]
+
         
 def can_process(hass, instance_name, pgn_id):
 
@@ -329,6 +319,7 @@ def can_process(hass, instance_name, pgn_id):
     else:
         _LOGGER.info(f"Throttling activated for PGN {pgn_id} in instance {instance_name}.")
         return False
+
 
 def is_pgn_allowed_based_on_lists(pgn, pgn_include_list, pgn_exclude_list):
     """
@@ -424,15 +415,12 @@ def publish_field(hass, instance_name, field_name, field_description, field_valu
     # Construct unique sensor name
     sensor_name = f"{instance_name}_{pgn_id}_{field_name}"
     
-    #_LOGGER.debug(f"Constructed sensor name: {sensor_name}")
-
     # Define sensor characteristics
     group = "Smart2000"
     
     unit_of_measurement = unit  # Determine based on field_name if applicable
     
     device_name = pgn_description
-    #_LOGGER.debug(f"Device name for PGN {pgn_id}: {device_name}")
 
     # Access keys for created sensors and entity addition
     created_sensors_key = f"{instance_name}_created_sensors"
@@ -455,18 +443,13 @@ def publish_field(hass, instance_name, field_name, field_description, field_valu
         
         hass.data[add_entities_key]([sensor])
         hass.data[created_sensors_key][sensor_name] = sensor
-        #_LOGGER.debug(f"Sensor {sensor_name} added successfully.")
     else:
         # If sensor exists, update its state
         _LOGGER.debug(f"Updating existing sensor {sensor_name} with new value: {field_value}")
         sensor = hass.data[created_sensors_key][sensor_name]
         sensor.set_state(field_value)
-        #_LOGGER.debug(f"Sensor {sensor_name} updated successfully.")
 
         
-
-
-
 
 # SmartSensor class representing a basic sensor entity with state
 
@@ -536,7 +519,6 @@ class SmartSensor(Entity):
         """Return the state class of the sensor."""
         return self._state_class
 
-
     @property
     def last_updated(self):
         """Return the last updated timestamp of the sensor."""
@@ -551,7 +533,6 @@ class SmartSensor(Entity):
     def should_poll(self) -> bool:
         """Return the polling requirement for this sensor."""
         return False
-
 
     def update_availability(self):
         """Update the availability status of the sensor."""
