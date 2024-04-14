@@ -114,6 +114,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     # Store the unsubscribe callback to use it later for cleanup
     hass.data[f"{name}_unsubscribe"] = unsubscribe
      
+    # Start the task that updates the sensor availability every 5 minutes
+    hass.loop.create_task(update_sensor_availability(hass,name))
+
     _LOGGER.info(f"{esp32name} setup completed.")
     
     return True
