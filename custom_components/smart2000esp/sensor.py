@@ -555,14 +555,24 @@ class SmartSensor(Entity):
 
     def set_state(self, new_state):
         """Set the state of the sensor."""
-        _LOGGER.debug(f"Setting state for sensor: '{self._name}' to {new_state}")
-        self._state = new_state
-        if new_state is None or new_state == "":
-            self._available = False
-            _LOGGER.debug(f"Setting sensor:'{self._name}' with unavailable")
-        else:
+        
+        if new_state is not None and new_state != "":
+            # Since the state is valid, update the sensor's state and the last updated timestamp
+            self._state = new_state
             self._available = True
-        self._last_updated = datetime.now()
+            self._last_updated = datetime.now()
+            _LOGGER.debug(f"Setting state for sensor: '{self._name}' to {new_state}")
+        else:
+            # For None or empty string, check the time since last valid update
+            if self._last_updated and (datetime.now() - self._last_updated > timedelta(minutes=1)):
+                # It's been more than 1 minute since the last valid update
+                self._available = False
+                _LOGGER.info(f"Setting sensor:'{self._name}' as unavailable due to no valid update for over 1 minute")
+            else:
+                # It's been less than 1 minute since the last valid update, keep the sensor available
+                _LOGGER.info(f"Sensor:'{self._name}' remains available as it's less than 1 minute since last valid state")
+            # We update the state but not the _last_updated timestamp
+            self._state = new_state
 
         try:
             self.async_schedule_update_ha_state()
