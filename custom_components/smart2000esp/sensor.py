@@ -571,8 +571,6 @@ class SmartSensor(Entity):
             else:
                 # It's been less than 1 minute since the last valid update, keep the sensor available
                 _LOGGER.info(f"Sensor:'{self._name}' remains available as it's less than 1 minute since last valid state")
-            # We update the state but not the _last_updated timestamp
-            self._state = new_state
 
         try:
             self.async_schedule_update_ha_state()
