@@ -1,3 +1,5 @@
+# Standard Library Imports
+
 from datetime import date, timedelta
 import struct
 import math
@@ -11,6 +13,9 @@ def kelvin_to_fahrenheit(kelvin):
     Returns:
         float: The temperature in Fahrenheit.
     """
+    if kelvin is None:
+        return None
+    
     # Convert Kelvin to Fahrenheit
     fahrenheit = round((kelvin - 273.15) * (9/5) + 32,0)
 
@@ -23,18 +28,13 @@ def kelvin_to_celsius(kelvin):
     Returns:
         float: The temperature in Celsius.
     """
+    if kelvin is None:
+        return None
+
     # Convert Kelvin to Celsius
     celsius = round(kelvin - 273.15,1)
 
     return celsius
-
-def safe_multiply(a, b):
-    """Safely multiplies two values, returning None if either is None."""
-    if a is None or b is None:
-        return None
-    else:
-        return a * b
-
 
 def mps_to_knots(mps):
     """
@@ -42,6 +42,8 @@ def mps_to_knots(mps):
     Returns:
         float: The speed in nautical knots, rounded to one decimal place.
     """
+    if mps is None:
+        return None
     
     # Conversion factor from m/s to knots
     conversion_factor = 3600 / 1852
@@ -58,6 +60,9 @@ def radians_to_degrees(radians):
     Returns:
         float: The angle in degrees.
     """
+    if radians is None:
+        return None
+
     # Convert radians to degrees
     degrees = round(math.degrees(radians), 0)
     return degrees
@@ -158,15 +163,15 @@ def decode_number(number_int, bit_length):
     if bit_length <= 3:
         if number_int == (1 << bit_length) - 1:
             _LOGGER.info(f"Field not present for bit length <= 3. Number: {number_int}")
-            return 0
+            return None
     elif bit_length >= 4:
         max_positive_value = (1 << bit_length) - 1
         if number_int == max_positive_value:
             _LOGGER.info(f"Field not present for bit length >= 4. Number: {number_int}")
-            return 0
+            return None
         elif number_int == max_positive_value - 1:
             _LOGGER.info(f"Field has an error for bit length >= 4. Number: {number_int}")
-            return 0
+            return None
 
     # If no special conditions met, log and return the number as is
     _LOGGER.debug(f"No special conditions met. Returning number: {number_int}")

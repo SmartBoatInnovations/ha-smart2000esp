@@ -91,14 +91,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
   
     
     
-    # Define a callback to handle when te esp32 sends a new canbus frame
+    # Define a callback to handle when the esp32 sends a new canbus frame
     @callback
     def sensor_state_change(entity_id, old_state, new_state):
         # Log the new value
         if new_state is not None:
-            set_pgn_entity(hass, name, entity_id, new_state.state)          
+            set_pgn_entity(hass, name, new_state.state)          
         else:
-            _LOGGER.debug('Sensor %s has no new state', entity_id)
+            _LOGGER.debug('Sensor %s has no new state')
             
             
 
@@ -185,13 +185,13 @@ def parse_and_validate_comma_separated_integers(input_str: str):
     return validated_integers
 
 
-def call_process_function(pgn, hass, instance_name, entity_id, data_frames):
+def call_process_function(pgn, hass, instance_name, data_frames):
     function_name = f'process_pgn_{pgn}'
     function_to_call = globals().get(function_name)
 
     # Check if the function exists
     if function_to_call:
-        function_to_call(hass, instance_name, entity_id, data_frames)
+        function_to_call(hass, instance_name, data_frames)
     else:
         _LOGGER.info(f"No function found for PGN: {pgn}")
 
@@ -216,7 +216,7 @@ def combine_pgn_frames(hass, pgn, instance_name):
 
 
 
-def process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex):
+def process_fast_packet(pgn, hass, instance_name, data64, data64_hex):
     
     fast_packet_key = f"{instance_name}_fast_packet_key"
     
@@ -302,7 +302,7 @@ def process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
             _LOGGER.info(f"Combined Payload (hex): {combined_payload_hex})")
             _LOGGER.info(f"Combined Payload (hex): (hex: {combined_payload_int:x})")
 
-            call_process_function(pgn, hass, instance_name, entity_id, combined_payload_int)
+            call_process_function(pgn, hass, instance_name, combined_payload_int)
 
         # Reset the structure for this PGN
         del hass.data[fast_packet_key][pgn]
@@ -345,7 +345,7 @@ def is_pgn_allowed_based_on_lists(pgn, pgn_include_list, pgn_exclude_list):
     return True
 
 
-def set_pgn_entity(hass, instance_name, entity_id, state_value):
+def set_pgn_entity(hass, instance_name, state_value):
     """Reconstructs PGN and data64 from the sensor state, handling various edge cases."""
 
     smart2000esp_data_key = f"{instance_name}_smart2000esp_data"
@@ -394,13 +394,13 @@ def set_pgn_entity(hass, instance_name, entity_id, state_value):
             
         if pgn_type and pgn_type == 'Fast':
             _LOGGER.info(f"PGN {pgn} is of type 'Fast'.")
-            process_fast_packet(pgn, hass, instance_name, entity_id, data64, data64_hex)
+            process_fast_packet(pgn, hass, instance_name, data64, data64_hex)
         elif pgn_type and pgn_type == 'Single':
             if not can_process(hass, instance_name, pgn):
                 return
             
             _LOGGER.debug(f"PGN {pgn} is of type 'Single'.")
-            call_process_function(pgn, hass, instance_name, entity_id, data64)
+            call_process_function(pgn, hass, instance_name, data64)
         else:
             _LOGGER.info(f"PGN {pgn} is not a known PGN.")
                 
@@ -431,7 +431,6 @@ def publish_field(hass, instance_name, field_name, field_description, field_valu
 
     # Check for sensor existence and create/update accordingly
     if sensor_name not in hass.data[created_sensors_key]:
-        #_LOGGER.debug(f"Creating new sensor for {sensor_name}")
         # If sensor does not exist, create and add it
         sensor = SmartSensor(
             sensor_name, 
