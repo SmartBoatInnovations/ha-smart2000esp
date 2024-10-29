@@ -23,8 +23,7 @@ import pprint
 
 # Home Assistant Imports
 from homeassistant.core import callback, HomeAssistant
-from homeassistant.components.sensor import  SensorStateClass
-from homeassistant.helpers.entity import Entity
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.helpers.event import async_track_state_change
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -468,7 +467,7 @@ def publish_field(hass, instance_name, field_name, field_description, field_valu
 
 # SmartSensor class representing a basic sensor entity with state
 
-class SmartSensor(Entity):
+class SmartSensor(SensorEntity):
     def __init__(
         self, 
         name, 
