@@ -24,7 +24,7 @@ import pprint
 # Home Assistant Imports
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
-from homeassistant.helpers.event import async_track_state_change
+from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -109,12 +109,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     
     # Define a callback to handle when the esp32 sends a new canbus frame
     @callback
-    def sensor_state_change(entity_id, old_state, new_state):
-        # Log the new value
-        if new_state is not None:
-            set_pgn_entity(hass, name, new_state.state)          
+    def sensor_state_change(event):
+        entity_id = event.data["entity_id"]
+        new_state = event.data["new_state"]
+    
+        if new_state:
+            set_pgn_entity(hass, name, new_state.state)
         else:
-            _LOGGER.debug('Sensor %s has no new state')
+            _LOGGER.debug("Sensor %s has no new state", entity_id)
             
             
 
@@ -122,10 +124,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     sensor_name = name.replace('-', '_')
 
     esp32name = f'sensor.{sensor_name}_smart2000_frame'
-
+   
     # Subscribe to changes of the main sensor
-
-    unsubscribe = async_track_state_change(hass, esp32name, sensor_state_change)
+    _LOGGER.debug("Subscribing to state changes for %s", esp32name)
+    unsubscribe = async_track_state_change_event(
+        hass,
+        [esp32name],
+        sensor_state_change
+    )
     
     # Store the unsubscribe callback to use it later for cleanup
     hass.data[f"{name}_unsubscribe"] = unsubscribe
