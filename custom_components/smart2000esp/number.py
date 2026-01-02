@@ -101,18 +101,19 @@ class Smart2000ESPUpdateIntervalNumber(NumberEntity, RestoreEntity):
                 mi = data["min_interval"]
                 if isinstance(mi, timedelta):
                     self._native_value = mi.total_seconds()
-                    self.async_write_ha_state()
+                    self.hass.loop.call_soon_threadsafe(self.async_schedule_update_ha_state, True)
                     return
 
         # Fallback to stored last value
         seconds = self.hass.data.get(self.entry.domain, {}).get("update_interval_seconds")
         if seconds is not None:
             self._native_value = float(seconds)
-            self.async_write_ha_state()
+            self.hass.loop.call_soon_threadsafe(self.async_schedule_update_ha_state, True)
 
     async def async_set_native_value(self, value: float) -> None:
         """Update the interval."""
         seconds = float(value)
         await async_set_update_interval(self.hass, seconds)
         self._native_value = seconds
-        self.async_write_ha_state()
+        self.async_schedule_update_ha_state(True)
+        

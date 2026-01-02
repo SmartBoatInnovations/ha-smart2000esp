@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import asyncio
 import logging
 
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 DOMAIN = "smart2000esp"
@@ -60,11 +61,20 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     return True
 
+@callback
+def _send_interval_changed(hass: HomeAssistant, entry_id: str) -> None:
+    """Send dispatcher signal on the HA event loop."""
+    async_dispatcher_send(hass, f"{SIGNAL_UPDATE_INTERVAL_CHANGED}_{entry_id}")
 
 async def async_set_update_interval(hass: HomeAssistant, seconds: float) -> None:
     """Update the throttling interval used by Smart2000ESP at runtime."""
-    # Store last chosen interval (for the update-interval entity to show immediately)
     hass.data.setdefault(DOMAIN, {})["update_interval_seconds"] = seconds
+
+    # Are we running on the HA event loop?
+    try:
+        on_ha_loop = asyncio.get_running_loop() is hass.loop
+    except RuntimeError:
+        on_ha_loop = False
 
     for entry in hass.config_entries.async_entries(DOMAIN):
         name = entry.data.get("name")
@@ -77,11 +87,13 @@ async def async_set_update_interval(hass: HomeAssistant, seconds: float) -> None
 
         hass.data[smart2000timestamp_key]["min_interval"] = timedelta(seconds=seconds)
 
-        # Notify any listeners (e.g., number entity) to refresh state
-        async_dispatcher_send(hass, f"{SIGNAL_UPDATE_INTERVAL_CHANGED}_{entry.entry_id}")
+        # Always dispatch on the HA loop (thread-safe)
+        if on_ha_loop:
+            _send_interval_changed(hass, entry.entry_id)
+        else:
+            hass.loop.call_soon_threadsafe(_send_interval_changed, hass, entry.entry_id)
 
     _LOGGER.debug("Smart2000ESP update interval set to %ss", seconds)
-
 
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
     """Handle options update."""
